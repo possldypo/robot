@@ -1,22 +1,20 @@
 # coding=utf-8
 from abc import abstractmethod
 
+import re
 import conf
 from util.mysqlUtil import MySQLDB
 
 
 class Lexicon(object):
-    FILE = "file"
-    DB = "db"
+    FILE = "LoadInFile"
+    DB = "LoadInDB"
 
     def __init__(self, lexicon=FILE):
-        pass
+        self.model = eval(lexicon + "()")
 
-    def load_file(self):
-        pass
-
-    def load_db(self):
-        pass
+    def load(self):
+        return self.model.load()
 
 
 class LoadLexicon(object):
@@ -34,7 +32,12 @@ class LoadInFile(LoadLexicon):
         self.file_name = conf.lexicon_file_path
 
     def load(self):
-        pass
+        result_map = {}
+        with open(self.file_name, "r") as file_model:
+            for line in file_model:
+                entity = LexiconEntity.list_to_obj(re.sub(line, "\s", "").split(","))
+                result_map[entity.word] = entity
+        return result_map
 
 
 class LoadInDB(LoadLexicon):
@@ -43,7 +46,17 @@ class LoadInDB(LoadLexicon):
                           database=conf.lexicon_db_database, port=conf.lexicon_db_port)
 
     def load(self):
-        pass
+        """
+        通过数据库加载词典
+        :return:
+        """
+        count = self.get_count()
+        t = 10000
+        sql = "select word, property from lexicon where status='valid' limit %d," + str(t)
+        result_map = {}
+        for page in range(count / t if count % t == 0 else (count / t) + 1):
+            result_map = dict(LexiconEntity.lists_to_objs(self.db.find(sql, None)), **result_map)
+        return result_map
 
     def get_count(self):
         """
